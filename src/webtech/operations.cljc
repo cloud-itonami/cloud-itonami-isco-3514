@@ -1,0 +1,100 @@
+(ns webtech.operations
+  "The closed set of operations the WebTechniciansActor offers, and what
+  each one is checked against.
+
+  This namespace exists because the governor's gate was open in two
+  directions, both measured against the code at 802ca04:
+
+  1. An operation the actor does not offer was approved. `:op` was
+     never checked against anything, so a proposal carrying an
+     unrecognised `:op` matched none of the site-basis rules, collected
+     zero violations and returned `:ok? true` — straight through
+     `:decide` to `:commit`. `webtech.advisor/parse-proposal` can itself
+     emit `{:op :unknown}` for unparseable LLM output, so this was
+     reachable without a hostile caller.
+
+  2. The riskiest operation was checked LEAST. Site basis, conformance
+     floor and domain membership were gated on
+     `(= :approve-deployment op)`, so `:approve-production-cutover` —
+     the DNS/production traffic switch — skipped all three and only
+     escalated. Escalation resumes straight into `:commit`
+     (`webtech.actor/approve!`), so a human sign-off committed a cutover
+     to an unregistered site, an unapproved domain, or below the
+     registered conformance floor.
+
+  The fix for both is the same shape: the operation is declared data,
+  and the governor reads its obligations off the declaration rather than
+  re-deriving them per rule. An operation that is not declared here
+  cannot be proposed at all.
+
+  Adding an operation is deliberately a two-hand act: a new entry MUST
+  state `:requires-site-basis?` and `:always-escalates?`. There is no
+  default — an operation whose obligations nobody wrote down is exactly
+  the thing that produced defect 1."
+  (:require [clojure.set :as set]))
+
+(def registry
+  "op -> obligations. `:requires-site-basis?` subjects the proposal to
+  the registered-site rules (site basis, conformance floor, domain
+  membership). `:always-escalates?` forces human sign-off regardless of
+  confidence."
+  {:approve-deployment
+   {:requires-site-basis? true
+    :always-escalates? false
+    :doc "Approve a deployment of a registered site to an approved domain."}
+
+   :approve-production-cutover
+   {:requires-site-basis? true
+    :always-escalates? true
+    :doc "Switch DNS/production traffic. Site-checked AND human-signed."}
+
+   :schedule-maintenance-window
+   {:requires-site-basis? true
+    :always-escalates? false
+    :doc "Schedule downtime for a registered site. Site basis only —
+          a maintenance window neither claims nor changes a conformance
+          level, so the floor does not apply to it."}
+
+   :report-accessibility-audit
+   {:requires-site-basis? true
+    :always-escalates? false
+    :doc "Record an accessibility audit result against a registered
+          site. Site-checked: an audit that cites no registered site is
+          an audit of nothing."}})
+
+(def offered
+  "The set of operations this actor offers. Anything else is refused."
+  (set (keys registry)))
+
+(defn offered?
+  "Is `op` an operation this actor offers? nil and unknown keywords are
+  not — this is the predicate defect 1 was missing."
+  [op]
+  (contains? offered op))
+
+(defn requires-site-basis?
+  "Must a proposal for `op` cite a registered site belonging to the
+  requesting client? False for anything unoffered — an unoffered op is
+  refused outright by `:unoffered-op` and never reaches the site rules."
+  [op]
+  (boolean (get-in registry [op :requires-site-basis?])))
+
+(defn always-escalates?
+  "Does `op` require human sign-off no matter how confident the advisor
+  is?"
+  [op]
+  (boolean (get-in registry [op :always-escalates?])))
+
+(def ^:private required-obligations #{:requires-site-basis? :always-escalates?})
+
+(defn underdeclared
+  "Registry entries missing an obligation key. An entry that omits one
+  would silently read as false, which is how the permissive branch of
+  defect 2 looked from the outside. Returns op -> missing key set;
+  empty when the registry is fully declared."
+  []
+  (into {}
+        (keep (fn [[op decl]]
+                (let [missing (set/difference required-obligations (set (keys decl)))]
+                  (when (seq missing) [op missing]))))
+        registry))
