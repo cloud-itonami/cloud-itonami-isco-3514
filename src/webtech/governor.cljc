@@ -9,10 +9,16 @@
   approved-domains set or it is not.
 
   HARD invariants (:hard? true, ALWAYS :hold, never overridable):
+    0. offered op        — :op must be one this actor offers
+                           (`webtech.operations/registry`). An op
+                           nobody declared collects no obligations, so
+                           before this rule existed an unrecognised :op
+                           matched no site rule and returned :ok? true.
     1. client provenance — the organization must be registered.
     2. no-actuation      — proposal :effect must be :propose.
-    3. site basis          — a deployment approval must cite a
-                           REGISTERED site belonging to this client.
+    3. site basis          — an op whose registry entry says
+                           :requires-site-basis? must cite a REGISTERED
+                           site belonging to this client.
     4. conformance floor   — the proposed achieved-conformance-level
                            must be ordinally >= the site's registered
                            :min-conformance-level (A < AA < AAA;
@@ -21,11 +27,22 @@
                            member of the site's registered
                            :approved-domains set (no unauthorized
                            deployment target).
+
+  Rules 3-5 apply to EVERY site-basis op, not just :approve-deployment.
+  They used to be gated on `(= :approve-deployment op)`, which exempted
+  :approve-production-cutover — the DNS/production traffic switch, i.e.
+  the riskiest op was the least checked. Escalation is not a substitute
+  for a HARD rule: `webtech.actor/approve!` resumes an escalated run
+  straight into :commit, so an exempted cutover was committed on a
+  human sign-off that was never shown a violation.
+
   ESCALATION invariants (:escalate? true, human sign-off):
-    6. :op :approve-production-cutover (DNS/production traffic
-                           switch).
+    6. any op whose registry entry says :always-escalates? true
+       (currently :approve-production-cutover — the DNS/production
+       traffic switch).
     7. low confidence (< `confidence-floor`)."
-  (:require [webtech.store :as store]))
+  (:require [webtech.store :as store]
+            [webtech.operations :as operations]))
 
 (def confidence-floor 0.6)
 
@@ -33,8 +50,19 @@
 
 (defn- hard-violations [{:keys [request proposal]} client-record st]
   (let [{:keys [op achieved-conformance-level domain]} proposal
-        approve? (= :approve-deployment op)]
+        offered? (operations/offered? op)
+        ;; Site basis is an obligation the OPERATION declares, not a
+        ;; property of one hardcoded op. Previously this read
+        ;; `(= :approve-deployment op)`, which is why
+        ;; :approve-production-cutover — the riskiest op — skipped every
+        ;; site rule below.
+        approve? (and offered? (operations/requires-site-basis? op))]
     (cond-> []
+      (not offered?)
+      (conj {:rule :unoffered-op
+             :detail (str "op " (pr-str op) " はこの actor が提供する操作ではない"
+                          "（提供: " (pr-str (sort operations/offered)) "）")})
+
       (nil? client-record)
       (conj {:rule :no-client :detail "未登録 client"})
 
@@ -72,7 +100,9 @@
         hard? (boolean (seq hard))
         conf (or (:confidence proposal) 0.0)
         low? (< conf confidence-floor)
-        risky-op? (= :approve-production-cutover (:op proposal))]
+        ;; Which ops always need a human is declared in the registry, so
+        ;; adding an op cannot silently add an unsigned one.
+        risky-op? (operations/always-escalates? (:op proposal))]
     {:ok? (and (not hard?) (not low?) (not risky-op?))
      :violations hard
      :confidence conf
