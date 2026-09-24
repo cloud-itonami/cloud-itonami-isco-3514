@@ -10,7 +10,7 @@
    that something was refused: a test that only asserts :hard? passes
    when the refusal came from an unrelated rule, and would have stayed
    green through the very rename it is supposed to catch."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [webtech.store :as store]
             [webtech.governor :as governor]
             [webtech.operations :as operations]
