@@ -31,7 +31,7 @@
   state `:requires-site-basis?` and `:always-escalates?`. There is no
   default — an operation whose obligations nobody wrote down is exactly
   the thing that produced defect 1."
-  (:require [clojure.set :as set]))
+  (:require [kotoba.lang.coll :as set]))
 
 (def registry
   "op -> obligations. `:requires-site-basis?` subjects the proposal to
