@@ -1,5 +1,5 @@
 (ns webtech.governor-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [webtech.store :as store]
             [webtech.governor :as governor]))
 

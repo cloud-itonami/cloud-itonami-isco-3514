@@ -1,5 +1,5 @@
 (ns webtech.actor-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [webtech.actor :as actor]
             [webtech.store :as store]))
 
