@@ -1,6 +1,6 @@
 (ns webtech.store
   "SSoT for the ISCO-08 3514 community web technicians actor (itonami
-  actor pattern, ADR-2607011000 / CLAUDE.md Actors section). Modeled
+  actor pattern, ADR-2607011000 / AGENTS.md Actors section). Modeled
   on cloud-itonami-isco-4311's bookkeeping.store.
 
   Domain:

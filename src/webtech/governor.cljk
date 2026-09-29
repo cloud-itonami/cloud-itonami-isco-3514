@@ -1,7 +1,7 @@
 (ns webtech.governor
   "WebTechniciansGovernor — the independent safety/traceability layer
   for the ISCO-08 3514 community web technicians actor (itonami actor
-  pattern, ADR-2607011000 / CLAUDE.md Actors section). Modeled on
+  pattern, ADR-2607011000 / AGENTS.md Actors section). Modeled on
   cloud-itonami-isco-4311's bookkeeping.governor. Web-ops twist: WCAG
   conformance is an ORDINAL scale (A < AA < AAA) checked against the
   registered floor — conformance is ordinal, not aspirational — and a
